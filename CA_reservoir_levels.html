@@ -1,0 +1,128 @@
+<html>
+<head>
+  <link rel="stylesheet" href="http://forio.com/tools/contour/contour.css">
+  <script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js"></script>
+
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script src="http://forio.com/tools/contour/contour.js"></script>
+  <script src="http://forio.com/tools/contour/contour.connectors.js"></script>
+
+  <style>
+    pre {
+/*        -moz-tab-size:    10;
+        -o-tab-size:      10;
+        -webkit-tab-size: 10;
+        -ms-tab-size:     10;
+*/        tab-size:         30;
+    }
+
+    .area {
+      opacity: 0.8;
+    }
+    .dot {
+      fill: #fff;
+    }
+
+    .capacity {
+      fill: #ddd;
+      stroke: #ccc;
+    }
+
+    .data-markers {
+      stroke: red;
+      stroke-width: 2px;
+    }
+    .grid-line {
+      stroke: #efefef;
+      stroke-dasharray: 2,5;
+    }
+    .y.axis {
+      stroke: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chart"></div>
+
+  <pre class="res"></pre>
+
+  <script>
+    var docKey = '1IUwCsiFrdHl9AFh0pRagqwpOJ4ZOBkTnzvFJfkGCW6I';
+    var url = 'https://docs.google.com/a/forio.com/spreadsheets/d/' + docKey + '/export?gid=0&format=csv'
+    // read from google docs
+    $.ajax({
+      url: 'http://query.yahooapis.com/v1/public/yql',
+      data: {
+        q: "select * from csv where url='" + url + "'",
+        format: 'json'
+      },
+      dataType: 'jsonp',
+      success: function(resp) {
+        var res = resp.query.results;
+        var data = _.map(res.row, function(row) {
+          return _.reduce(row, function (m, r) {
+            return m ? m += ',' + r.replace(/,/g,'') : m = r.replace(/,/g, '');
+          }, '')
+        }).join('\n');
+
+        appRun(data);
+      }
+    });
+
+    function appRun(data) {
+      $('.res').html(data.replace(/\n/g, '<br>').replace(/,/g, '\t'));
+
+      var ds = new Contour.connectors.Csv(data);
+      var dim = 'Reservoir';
+      var measure = ['capacity', 'Avg Storage'];
+
+      ds.dimension(dim).top(10)
+
+      new Contour({
+        el: '.chart',
+        chart: {
+          height: 300,
+          width: 800,
+          gridlines: 'vertical',
+        },
+        xAxis: {
+          labels: {
+            format: 's'
+          },
+          outerRangePadding: .1,
+          innerRangePadding: .3
+        },
+      })
+      .cartesian()
+      .horizontal()
+      .bar(ds.measure('capacity'))
+      .bar(ds.measure('storage'))
+      .markers(ds.measure('avg storage'))
+      .render();
+
+    }
+
+    Contour.export('markers', function (data, layer, options) {
+      var colWidth = this.rangeBand;
+      var x = this.xScale;
+      var y = this.yScale;
+      var extra = 2;
+
+      var markers = layer.selectAll('.data-markers').data(data[0].data);
+
+      markers.enter().append('line')
+        .attr('class', 'data-markers');
+
+      markers.transition().delay(options.chart.animations.duration || 400)
+        .attr('y1', function (d) { return x(d.x) - extra })
+        .attr('y2', function (d) { return x(d.x) + colWidth + extra; })
+        .attr('x1', function (d) { return y(d.y); })
+        .attr('x2', function (d) { return y(d.y); })
+    });
+
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,155 @@
+<html>
+<head>
+  <link rel="stylesheet" href="contour.css">
+  <script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js"></script>
+
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script src="contour.js"></script>
+  <script src="contour.connectors.js"></script>
+
+  <style>
+    pre {
+/*        -moz-tab-size:    10;
+        -o-tab-size:      10;
+        -webkit-tab-size: 10;
+        -ms-tab-size:     10;
+*/        tab-size:         30;
+    }
+
+    .chart {
+      width: 80%;
+    }
+
+    .area {
+      opacity: 0.8;
+    }
+    .dot {
+      fill: #fff;
+    }
+
+    .capacity {
+      fill: #ddd;
+      stroke: #ccc;
+    }
+
+    .data-markers {
+      stroke: red;
+      stroke-width: 2px;
+    }
+    .grid-line {
+      stroke: #efefef;
+      stroke-dasharray: 2,5;
+    }
+    .y.axis {
+      stroke: none;
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="chart"></div>
+  
+  <pre class="res"></pre>
+  
+  <script>
+  // https://docs.google.com/spreadsheets/d/1LvIoi5aRiEP-n2UfUY3v79oFzM2Q97VbdrgLl06ajJ8/pubhtml
+
+    if(1) {
+      var dim = 'year';
+      var measure = ['domestic', 'international'];
+      var docKey = '1LvIoi5aRiEP-n2UfUY3v79oFzM2Q97VbdrgLl06ajJ8';
+    } else {
+      var dim = 'quarter';
+      var measure = ['revenue'];
+      var docKey = '16yU28Mp3Zte7DCzH8C1SeQCXV4G5jT5PQxb4KLaJbME';
+      // var docKey = '16yU28Mp3Zte7DCzH8C1SeQCXV4G5jT5PQxb4KLaJbME';
+    }
+
+    var url = 'https://docs.google.com/a/forio.com/spreadsheets/d/' + docKey + '/export?gid=0&format=csv'
+    // read from google docs
+
+    $.ajax({
+      url: 'http://query.yahooapis.com/v1/public/yql',
+      data: { 
+        q: "select * from csv where url='" + url + "'",
+        format: 'json'
+      },
+      dataType: 'jsonp',
+      success: function(resp) {
+        var res = resp.query.results;
+        var data = _.map(res.row, function(row) {
+            return _.reduce(row, function (m, r) {
+                return m ? m += ',' + r.replace(/,/g,'') : m = r.replace(/,/g, '');
+            }, '')
+        }).join('\n');
+
+        appRun(data);
+      }
+    });
+
+    function appRun(data) {
+      $('.res').html(data.replace(/\n/g, '<br>').replace(/,/g, '\t'));
+
+       ds = new Contour.connectors.Csv(data);
+
+      ds.dimension(dim)
+
+      new Contour({
+        el: '.chart',
+        chart: {
+          gridlines: 'horizontal'
+        },
+        xAxis: {
+          // type: 'ordinal',
+          labels: {
+            rotation: -45,
+            format: 's'
+          },
+          outerRangePadding: .1,
+          innerRangePadding: .2
+        },
+        yAxis: {
+          title: measure,
+          innerTickSize: 0,
+          outerTickSize: 0
+
+        },
+        area: {
+          smooth: true
+        },
+        line: {
+          smooth: true
+        }
+      })
+      .cartesian()
+      .line(ds.measure(measure))
+      .tooltip()
+      .legend()
+      // .markers(ds.measure('avg storage'))
+      .render();
+
+    }
+
+    Contour.export('markers', function (data, layer, options) {
+      var colWidth = this.rangeBand;
+      var x = this.xScale;
+      var y = this.yScale;
+      var extra = 4;
+
+      var markers = layer.selectAll('.data-markers').data(data[0].data);
+
+      markers.enter().append('line')
+        .attr('class', 'data-markers');
+
+      markers.transition().delay(options.chart.animations.duration || 400)
+        .attr('x1', function (d) { return x(d.x) - extra })
+        .attr('x2', function (d) { return x(d.x) + colWidth + extra; })
+        .attr('y1', function (d) { return y(d.y); })
+        .attr('y2', function (d) { return y(d.y); })
+    });
+
+  </script>
+
+</body>
+</html>
